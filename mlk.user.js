@@ -4,7 +4,6 @@
 // @version      1.1
 // @description  经济普查是真的累！！！
 // @author       hanj-cn@qq.com
-// @supportURL   https://gitee.com/hanj-cn/directory-library-script
 // @updateURL    https://github.com/hanj-cn/mlk/raw/main/mlk.user.js
 // @downloadURL  https://github.com/hanj-cn/mlk/raw/main/mlk.user.js
 // @grant        unsafeWindow
