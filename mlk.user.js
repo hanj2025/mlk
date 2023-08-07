@@ -4,8 +4,8 @@
 // @version      1.1
 // @description  经济普查是真的累！！！
 // @author       hanj-cn@qq.com
-// @updateURL    https://github.com/hanj-cn/mlk/raw/main/mlk.user.js
-// @downloadURL  https://github.com/hanj-cn/mlk/raw/main/mlk.user.js
+// @updateURL    https://ghproxy.com/?q=https%3A%2F%2Fraw.githubusercontent.com%2Fhanj-cn%2Fmlk%2Fmain%2Fmlk.user.js
+// @downloadURL  https://ghproxy.com/?q=https%3A%2F%2Fraw.githubusercontent.com%2Fhanj-cn%2Fmlk%2Fmain%2Fmlk.user.js
 // @grant        unsafeWindow
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -18,7 +18,7 @@
 // @require      https://lib.baomitu.com/jquery/latest/jquery.min.js
 // ==/UserScript==
 
-//最后更新时间：2023年8月6日20:17:54
+//最后更新时间：2023年8月7日09:02:24
 
 (function () {
   //新增一个按钮用于操作
