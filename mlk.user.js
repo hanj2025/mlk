@@ -99,9 +99,9 @@
               } else {
                 //异常
                 alert(
-                  "搜索结果共" + (resultSize == -2)
-                    ? 0
-                    : resultSize + "条，请自行判断"
+                  "搜索结果共" +
+                    (resultSize == -2 ? 0 : resultSize) +
+                    "条，请自行判断异常"
                 );
               }
               //记录处理到哪个文件
