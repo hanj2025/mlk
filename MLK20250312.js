@@ -1,8 +1,10 @@
 // ==UserScript==
-// @name         MLK Helper
-// @namespace    http://tampermonkey.net/
+// @name         名录库助手
+// @namespace    https://gitee.com/hanj-cn
 // @version      1.0
 // @description  自动填写助手
+// @updateURL    https://ghfast.top/https://raw.githubusercontent.com/hanj2025/mlk/main/MLK20250312.js
+// @downloadURL  https://ghfast.top/https://raw.githubusercontent.com/hanj2025/mlk/main/MLK20250312.js
 // @author       GOD
 // @match        *://tjymlk.stats.gov.cn/*
 
