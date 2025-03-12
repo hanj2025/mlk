@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         名录库助手
 // @namespace    https://gitee.com/hanj-cn
-// @version      1.1
+// @version      1.2
 // @description  自动填写助手
 // @updateURL    https://ghfast.top/https://raw.githubusercontent.com/hanj2025/mlk/main/MLK20250312.js
 // @downloadURL  https://ghfast.top/https://raw.githubusercontent.com/hanj2025/mlk/main/MLK20250312.js
@@ -9,47 +9,9 @@
 // @match        *://tjymlk.stats.gov.cn/*
 
 // ==/UserScript==
-//测试更新脚本
+
+//更新时间：2025年3月12日17点53分
 (function () {
-  // 这是错误提示元素的xpath
-
-  const xpathItem =
-    '//*[@id="content"]/section[2]/common-project-bill/common-bill/div/div[1]/common-sequence/div[2]/div/div/div';
-
-  // 点击元素
-  function clickItem(itemNo) {
-    const itemElement = document.evaluate(
-      '//*[@id="content"]/section[2]/common-project-bill/common-bill/div/div[1]/common-sequence/div[2]/div[' +
-        itemNo +
-        "]/div/div",
-      document,
-      null,
-      XPathResult.FIRST_ORDERED_NODE_TYPE,
-      null
-    ).singleNodeValue;
-
-    if (!itemElement) {
-      console.log("未找到目标元素");
-      return;
-    }
-
-    // 获取父级 div
-    const parentDiv = itemElement.parentElement;
-    if (!parentDiv) {
-      console.log("未找到父级div");
-      return;
-    }
-
-    // 获取父级的下一个兄弟元素
-    const nextSibling = parentDiv.nextElementSibling;
-    if (!nextSibling) {
-      console.log("未找到下一个兄弟元素");
-      return;
-    }
-
-    // 模拟点击
-    nextSibling.click();
-  }
   // 创建助手盒子
   function createHelperBox() {
     // 创建主容器
@@ -554,7 +516,7 @@
   function clickBtn2() {
     let id = "";
     setInterval(function () {
-      id = autoSolveError();
+      id = autoSolveError(id);
     }, 3000);
   }
   function autoSolveError(idOld) {
@@ -614,32 +576,6 @@
         }
       }, 1000);
       return idNew;
-    }
-  }
-  function clickEleByXpath(xpath) {
-    // 使用 document.evaluate 方法通过 XPath 查找元素
-    const result = document.evaluate(
-      xpath,
-      document,
-      null,
-      XPathResult.FIRST_ORDERED_NODE_TYPE,
-      null
-    );
-    // 获取查找到的第一个元素
-    const element = result.singleNodeValue;
-
-    if (element) {
-      try {
-        // 模拟点击元素
-        element.click();
-        console.log(`成功点击元素，XPath: ${xpath}`);
-      } catch (error) {
-        // 若点击过程中出现错误，打印错误信息
-        console.error(`点击元素时出错，XPath: ${xpath}`, error);
-      }
-    } else {
-      // 若未找到元素，打印提示信息
-      console.log(`未找到元素，XPath: ${xpath}`);
     }
   }
 
