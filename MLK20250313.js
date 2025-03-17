@@ -3,8 +3,8 @@
 // @namespace    https://gitee.com/hanj-cn
 // @version      2.6
 // @description  全自动改错
-// @updateURL    https://ghfast.top/https://raw.githubusercontent.com/hanj2025/mlk/main/MLK20250313.js
-// @downloadURL  https://ghfast.top/https://raw.githubusercontent.com/hanj2025/mlk/main/MLK20250313.js
+// @updateURL    https://ghfast.top/https://raw.githubusercontent.com/NinaTracy/MLK/main/MLK20250313.js
+// @downloadURL  https://ghfast.top/https://raw.githubusercontent.com/NinaTracy/MLK/main/MLK20250313.js
 // @author       GOD
 // @match        *://tjymlk.stats.gov.cn/*
 // ==/UserScript==
@@ -751,6 +751,8 @@
   // ==================== 核心功能函数 ====================
   // 处理所有错误
   async function solveError() {
+    //attention
+    solveErrorPeopleNumberAndIncome();
     try {
       const xpathError =
         '//*[@id="content"]/section[2]/common-project-bill/common-bill/div/div[1]/mat-drawer-container/mat-drawer/div/common-bill-check-list/div/div/div[2]/div[2]/div[1]/div';
@@ -834,9 +836,6 @@
 
         if (success) fixed++;
       }
-
-      //attention
-      solveErrorPeopleNumberAndIncome();
 
       console.log(`修复了 ${fixed}/${errorNoList.length} 个错误`);
       return fixed > 0;
