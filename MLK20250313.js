@@ -3,8 +3,8 @@
 // @namespace    https://gitee.com/hanj-cn
 // @version      2.6
 // @description  全自动改错
-// @updateURL    https://ghfast.top/https://raw.githubusercontent.com/NinaTracy/MLK/main/MLK20250313.js
-// @downloadURL  https://ghfast.top/https://raw.githubusercontent.com/NinaTracy/MLK/main/MLK20250313.js
+// @updateURL    https://ghfast.top/https://raw.githubusercontent.com/hanj2025/mlk/main/MLK20250313.js
+// @downloadURL  https://ghfast.top/https://raw.githubusercontent.com/hanj2025/mlk/main/MLK20250313.js
 // @author       GOD
 // @match        *://tjymlk.stats.gov.cn/*
 // ==/UserScript==
