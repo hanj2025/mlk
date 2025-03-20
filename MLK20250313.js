@@ -1,15 +1,18 @@
 // ==UserScript==
 // @name         名录库助手
 // @namespace    https://gitee.com/hanj-cn
-// @version      2.6
+// @version      3.0
 // @description  全自动改错
 // @updateURL    https://ghfast.top/https://raw.githubusercontent.com/hanj2025/mlk/main/MLK20250313.js
 // @downloadURL  https://ghfast.top/https://raw.githubusercontent.com/hanj2025/mlk/main/MLK20250313.js
 // @author       GOD
 // @match        *://tjymlk.stats.gov.cn/*
+// @grant        GM_xmlhttpRequest
+// @connect      jcfx.tjj.zj.gov.cn
+// @connect      open.bigmodel.cn
 // ==/UserScript==
 
-//更新时间：2025年3月17日
+//更新时间：2025年3月20日
 (function () {
   // 全局变量
   const State = {
@@ -138,31 +141,31 @@
       messageContainer = document.createElement("div");
       messageContainer.id = "mlk-message-container";
       messageContainer.style.cssText = `
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 10001;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-    `;
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10001;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+      `;
       document.body.appendChild(messageContainer);
     }
 
     const toast = document.createElement("div");
     toast.textContent = text;
     toast.style.cssText = `
-    padding: 10px 20px;
-    background-color: ${colors[type]};
-    color: white;
-    border-radius: 4px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    font-weight: bold;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-  `;
+      padding: 10px 20px;
+      background-color: ${colors[type]};
+      color: white;
+      border-radius: 4px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      font-weight: bold;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    `;
 
     messageContainer.appendChild(toast);
 
@@ -781,6 +784,12 @@
         let success = false;
 
         switch (errorNoList[i]) {
+          case "090":
+            success = solveError090();
+            break;
+          case "097":
+            success = solveError097();
+            break;
           //083.成立年份和开业年份相同时，开业月份不能早于成立月份
           case "083":
             success = solveError079();
@@ -978,6 +987,7 @@
   }
 
   // 自动解决错误
+  // 自动解决错误
   async function autoSolveError(companyOld) {
     try {
       // 获取企业名称，而不是流水号
@@ -985,6 +995,12 @@
       if (!companyName || companyName === companyOld) return companyOld;
 
       log(`处理企业: ${companyName}`);
+
+      // 检查是否存在090错误
+      const xpathError =
+        '//*[@id="content"]/section[2]/common-project-bill/common-bill/div/div[1]/mat-drawer-container/mat-drawer/div/common-bill-check-list/div/div/div[2]/div[2]/div[1]/div';
+      const errorList = getAllElementsTextByXPath(xpathError);
+      const has090Error = errorList.some((error) => error.startsWith("090"));
 
       // 修复错误并检查是否成功
       const fixed = await solveError();
@@ -1016,6 +1032,99 @@
         } else {
           log("未找到下一个按钮", "error");
           return companyOld;
+        }
+      }
+
+      // 如果存在090错误，检查主要业务活动和行业代码是否已填写
+      if (has090Error) {
+        log("检测到090错误，保存前确认主要业务活动和行业代码已填写", "info");
+
+        // 创建检查字段函数
+        const checkFieldsFilled = () => {
+          const businessActivity = getValueByXpath('//*[@id="zyywhd1"]/input');
+          const industryCode = getValueByXpath('//*[@id="hydm"]/input');
+          return (
+            businessActivity &&
+            industryCode &&
+            businessActivity.trim().length >= 3
+          );
+        };
+
+        // 如果字段未填写，等待最多10秒
+        if (!checkFieldsFilled()) {
+          log("主要业务活动或行业代码未正确填写，等待API响应...", "warning");
+
+          // 使用Promise.race实现超时等待
+          try {
+            await Promise.race([
+              // 每500ms检查一次字段是否已填写
+              new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 20; // 10秒 / 500ms = 20次
+
+                const checkInterval = setInterval(() => {
+                  attempts++;
+                  if (checkFieldsFilled()) {
+                    clearInterval(checkInterval);
+                    log("字段已正确填写，继续处理", "success");
+                    resolve();
+                  } else if (attempts >= maxAttempts) {
+                    clearInterval(checkInterval);
+                    reject(new Error("等待填写主要业务活动和行业代码超时"));
+                  }
+                }, 500);
+              }),
+
+              // 超时Promise
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("等待填写超时")), 10000)
+              ),
+            ]);
+          } catch (error) {
+            log(error.message, "error");
+
+            // 尝试再次调用solveError090
+            log("尝试再次修复090错误", "warning");
+            const retryResult = await solveError090();
+            if (!retryResult) {
+              log("重试失败，跳过当前企业", "error");
+
+              // 点击"下一个"按钮
+              const nextButton = document.evaluate(
+                '//*[@id="content"]/section[2]/common-project-bill/common-bill/div/div[1]/common-sequence/div[1]/button[3]',
+                document,
+                null,
+                XPathResult.FIRST_ORDERED_NODE_TYPE,
+                null
+              ).singleNodeValue;
+
+              if (nextButton) {
+                nextButton.click();
+                log(`已跳过企业: ${companyName}`, "info");
+                updateProgress();
+                await delay(1000);
+                return companyName;
+              } else {
+                log("未找到下一个按钮", "error");
+                return companyOld;
+              }
+            }
+          }
+        }
+
+        // 最后再检查一次
+        const businessActivity = getValueByXpath('//*[@id="zyywhd1"]/input');
+        const industryCode = getValueByXpath('//*[@id="hydm"]/input');
+
+        if (
+          !businessActivity ||
+          !industryCode ||
+          businessActivity.trim().length < 3
+        ) {
+          log("主要业务活动或行业代码依然未正确填写，无法继续", "error");
+          return companyOld;
+        } else {
+          log("字段验证通过，继续保存", "success");
         }
       }
 
@@ -1053,7 +1162,6 @@
       throw error;
     }
   }
-
   // ==================== UI创建函数 ====================
   // 创建助手盒子
   function createHelperBox() {
@@ -1061,51 +1169,51 @@
     const helperBox = document.createElement("div");
     helperBox.id = "mlk-helper";
     helperBox.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        width: 200px;
-        background-color: rgba(255, 255, 255, 0.95);
-        border: 2px solid #ff3333;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(255, 0, 0, 0.2);
-        z-index: 10000;
-        user-select: none;
-      `;
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          width: 200px;
+          background-color: rgba(255, 255, 255, 0.95);
+          border: 2px solid #ff3333;
+          border-radius: 8px;
+          box-shadow: 0 2px 10px rgba(255, 0, 0, 0.2);
+          z-index: 10000;
+          user-select: none;
+        `;
 
     // 创建标题栏
     const titleBar = document.createElement("div");
     titleBar.style.cssText = `
-        padding: 10px;
-        background-color: #ff3333;
-        color: white;
-        font-weight: bold;
-        border-radius: 6px 6px 0 0;
-        cursor: move;
-        text-align: center;
-      `;
-    titleBar.textContent = "名录库助手 v2.6";
+          padding: 10px;
+          background-color: #ff3333;
+          color: white;
+          font-weight: bold;
+          border-radius: 6px 6px 0 0;
+          cursor: move;
+          text-align: center;
+        `;
+    titleBar.textContent = "名录库助手 v3.0";
 
     // 创建按钮容器
     const buttonContainer = document.createElement("div");
     buttonContainer.style.cssText = `
-        padding: 10px;
-        display: flex;
-        gap: 10px;
-        justify-content: center;
-      `;
+          padding: 10px;
+          display: flex;
+          gap: 10px;
+          justify-content: center;
+        `;
 
     // 创建按钮样式
     const buttonStyle = `
-        padding: 5px 15px;
-        background-color: #ff3333;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        font-weight: bold;
-      `;
+          padding: 5px 15px;
+          background-color: #ff3333;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          font-weight: bold;
+        `;
 
     // 创建按钮
     const button1 = document.createElement("button");
@@ -1136,13 +1244,13 @@
     const statusBar = document.createElement("div");
     statusBar.id = "mlk-status";
     statusBar.style.cssText = `
-    padding: 10px;
-    font-size: 12px;
-    text-align: left;
-    color: #666;
-    border-top: 1px solid #eee;
-    height: 40px;
-  `;
+      padding: 10px;
+      font-size: 12px;
+      text-align: left;
+      color: #666;
+      border-top: 1px solid #eee;
+      height: 40px;
+    `;
     statusBar.innerHTML = "<div>就绪</div>";
 
     // 组装元素
@@ -1155,12 +1263,12 @@
     // 添加版本和作者信息
     const infoBar = document.createElement("div");
     infoBar.style.cssText = `
-    padding: 5px;
-    font-size: 10px;
-    text-align: center;
-    color: #999;
-    border-top: 1px solid #eee;
-  `;
+      padding: 5px;
+      font-size: 10px;
+      text-align: center;
+      color: #999;
+      border-top: 1px solid #eee;
+    `;
     infoBar.textContent = "by HANJ · 2025";
 
     helperBox.appendChild(infoBar);
@@ -1236,15 +1344,15 @@
     const statusBar = document.getElementById("mlk-status");
     if (statusBar) {
       statusBar.innerHTML = `
-      <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-        <span>企业数: ${State.processedCount}</span>
-        <span>成功: ${State.successCount}</span>
-      </div>
-      <div style="display:flex; justify-content:space-between;">
-        <span>运行: ${timeStr}</span>
-        <span>速度: ${recordsPerMinute}家/分</span>
-      </div>
-    `;
+        <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+          <span>企业数: ${State.processedCount}</span>
+          <span>成功: ${State.successCount}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span>运行: ${timeStr}</span>
+          <span>速度: ${recordsPerMinute}家/分</span>
+        </div>
+      `;
 
       // 根据成功率改变状态栏颜色
       const successRate =
@@ -1261,6 +1369,247 @@
       }
     }
   }
+  /**
+   * 097.行业代码不能为空且应该是4位有效码
+   * @returns {boolean} 是否成功修复
+   */
+  async function solveError097() {
+    //获取主要业务活动1
+    let businessActivity = getValueByXpath('//*[@id="zyywhd1"]/input');
+    //如果主要业务活动1为空，无法处理
+    if (!businessActivity) {
+      log("主要业务活动1为空，无法处理", "error");
+      return false;
+    }
+    //获取行业代码
+    let industryResult = await getIndustryCodeFromAPI(businessActivity);
+    let industryCode = industryResult.code;
+    //设置行业代码
+    return setValueByXpath('//*[@id="hydm"]/input', industryCode);
+  }
+  /**
+   * 090.主要业务活动1不能为空，且长度不少于等于3个汉字，且不能全由数字组成。
+   * @returns {boolean} 是否成功修复
+   */
+  async function solveError090() {
+    //获取企业名称
+    let companyName = getValueByXpath('//*[@id="dwmc"]/input');
+    if (!companyName) {
+      log("企业名称为空，无法处理", "error");
+      return false;
+    }
+
+    log(`正在处理企业: ${companyName}`, "info");
+
+    //获取主要业务活动
+    const result = await analyzeCompany(companyName);
+
+    //如果任何一个为空，返回false
+    if (!result.success || !result.businessActivity || !result.industryCode) {
+      log("无法获取业务活动或行业代码", "error");
+      return false;
+    }
+
+    //设置主要业务活动和行业代码
+    let success = true;
+    success &= setValueByXpath(
+      '//*[@id="zyywhd1"]/input',
+      result.businessActivity
+    );
+    success &= setValueByXpath('//*[@id="hydm"]/input', result.industryCode);
+
+    return success;
+  }
+  /**
+   * 企业信息分析工具函数库
+   * 提供企业名称分析、业务活动提取和行业代码查询功能
+   *
+   * @author Your Name
+   * @version 1.0
+   */
+
+  /**
+   * 主函数：分析企业名称，返回业务活动和行业代码
+   * @param {string} companyName - 企业或事业单位名称
+   * @returns {Promise<Object>} - 返回包含业务活动和行业代码的对象
+   */
+  async function analyzeCompany(companyName) {
+    try {
+      // 步骤1：通过AI获取主要业务活动
+      const activityResult = await getBusinessActivityFromAI(companyName);
+
+      // 步骤2：通过业务活动获取行业代码
+      const industryResult = await getIndustryCodeFromAPI(
+        activityResult.businessActivity
+      );
+
+      // 返回组合结果
+      return {
+        companyName: companyName,
+        businessActivity: activityResult.businessActivity,
+        industryCode: industryResult.code,
+        industryName: industryResult.name,
+        industryCategory: industryResult.category,
+        success: true,
+      };
+    } catch (error) {
+      console.error(`分析企业 "${companyName}" 时发生错误:`, error);
+      return {
+        companyName: companyName,
+        businessActivity: "",
+        industryCode: "",
+        industryName: "",
+        industryCategory: "",
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * 通过智谱AI获取企业主要业务活动
+   * @param {string} companyName - 企业名称
+   * @returns {Promise<Object>} - {businessActivity: string}
+   */
+  function getBusinessActivityFromAI(companyName) {
+    return new Promise((resolve, reject) => {
+      // API配置
+      const API_TOKEN = "cc52b6be0db34080a855dd3c278c1401.afEKeu0Dzjw1DepC"; // 需要替换为您自己的API密钥
+      const API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
+
+      // 构造请求数据
+      const requestData = {
+        model: "glm-4",
+        messages: [
+          {
+            role: "system",
+            content: `你是一个行业分析专家，请依据企业/单位名称分析其主要业务活动。
+                          要求：
+                          1. 主要业务活动必须是"名词+动词"或"动词+名词"的短语形式，不超过8字
+                          2. 必须具体明确，避免模糊表述
+                          3. 行政/事业单位应体现其职能定位`,
+          },
+          {
+            role: "user",
+            content: `请分析"${companyName}"的主要业务活动，只需返回一个简洁的业务活动短语，格式为名词+动词或动词+名词，不需要其他任何解释或说明。`,
+          },
+        ],
+        temperature: 0.2,
+        top_p: 0.7,
+        max_tokens: 100,
+      };
+
+      // 使用GM_xmlhttpRequest实现跨域请求
+      GM_xmlhttpRequest({
+        method: "POST",
+        url: API_URL,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${API_TOKEN}`,
+        },
+        data: JSON.stringify(requestData),
+        onload: function (response) {
+          try {
+            if (response.status !== 200) {
+              reject(
+                new Error(
+                  `AI API请求失败: ${response.status} ${response.statusText}`
+                )
+              );
+              return;
+            }
+
+            const data = JSON.parse(response.responseText);
+            const aiResponse = data.choices[0].message.content.trim();
+
+            // 清理AI回复，提取核心业务活动描述
+            let businessActivity = aiResponse
+              .replace(/["""'''\(\)（）\[\]【】\{\}]/g, "") // 移除引号和括号
+              .replace(/^主要业务活动[是为：:]\s*/, "") // 移除开头的"主要业务活动是"等
+              .replace(/。$/, "") // 移除结尾的句号
+              .trim();
+
+            // 限制长度
+            if (businessActivity.length > 8) {
+              businessActivity = businessActivity.substring(0, 8);
+            }
+
+            resolve({ businessActivity });
+          } catch (error) {
+            console.error("处理AI响应失败:", error);
+            reject(error);
+          }
+        },
+        onerror: function (error) {
+          console.error("AI API请求失败:", error);
+          reject(new Error("无法连接到AI服务"));
+        },
+      });
+    });
+  }
+
+  /**
+   * 通过浙江自动编码系统API获取行业代码
+   * @param {string} businessActivity - 主要业务活动描述
+   * @returns {Promise<Object>} - {code: string, name: string, category: string}
+   */
+  function getIndustryCodeFromAPI(businessActivity) {
+    return new Promise((resolve, reject) => {
+      // 构建API URL，使用业务活动作为关键词
+      const searchTerm = encodeURIComponent(businessActivity);
+      const apiUrl = `https://jcfx.tjj.zj.gov.cn:6443/autocode-clusterapi-pub/api/stats/query/mobile/des/${searchTerm}/5`;
+
+      // 使用GM_xmlhttpRequest实现跨域请求
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: apiUrl,
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        onload: function (response) {
+          try {
+            if (response.status !== 200) {
+              console.log(response);
+              reject(new Error(`行业代码API请求失败: ${response.status}`));
+              return;
+            }
+
+            const data = JSON.parse(response.responseText);
+
+            // 检查API响应格式
+            if (
+              !data ||
+              data.code !== "00000" ||
+              !data.data ||
+              !data.data.Codes ||
+              !data.data.Codes.length
+            ) {
+              reject(new Error("未找到匹配的行业代码"));
+              return;
+            }
+
+            // 获取权重最高的结果
+            const bestMatch = data.data.Codes[0];
+
+            resolve({
+              code: bestMatch.Code,
+              name: bestMatch.Name,
+              category: bestMatch.Category,
+            });
+          } catch (error) {
+            console.error("处理行业代码API响应失败:", error);
+            reject(error);
+          }
+        },
+        onerror: function (error) {
+          console.error("行业代码API请求失败:", error);
+          reject(new Error("无法连接到行业代码服务"));
+        },
+      });
+    });
+  }
+
   // ==================== 初始化 ====================
   // 创建助手盒子
   createHelperBox();
