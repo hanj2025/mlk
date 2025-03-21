@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         名录库助手
 // @namespace    https://gitee.com/hanj-cn
-// @version      4.1
+// @version      4.2
 // @description  全自动改错
 // @updateURL    https://ghfast.top/https://raw.githubusercontent.com/hanj2025/mlk/main/MLK20250321.js
 // @downloadURL  https://ghfast.top/https://raw.githubusercontent.com/hanj2025/mlk/main/MLK20250321.js
@@ -599,7 +599,7 @@
           cursor: move;
           text-align: center;
         `;
-        titleBar.textContent = "名录库助手 v4.1";
+        titleBar.textContent = "名录库助手 v4.2";
 
         // 创建按钮容器
         const buttonContainer = document.createElement("div");
@@ -777,14 +777,16 @@
               {
                 role: "system",
                 content: `你是一个行业分析专家，请依据企业/单位名称分析其主要业务活动。
-                    要求：
-                    1. 主要业务活动必须是"名词+动词"或"动词+名词"的短语形式，不超过8字
-                    2. 必须具体明确，避免模糊表述
-                    3. 行政/事业单位应体现其职能定位`,
+              要求：
+              1. 主要业务活动必须是"名词+动词"或"动词+名词"的短语形式，不超过8字
+              2. 必须具体明确，避免模糊表述
+              3. 行政/事业单位应体现其职能定位
+              4. 禁止其他任何解释或说明
+              5. 只允许回复汉字，不允许任何标点符号`,
               },
               {
                 role: "user",
-                content: `请分析"${companyName}"的主要业务活动，只需返回一个简洁的业务活动短语，格式为名词+动词或动词+名词，不需要其他任何解释或说明。`,
+                content: `请分析"${companyName}"的主要业务活动，只需返回一个简洁的业务活动短语，格式为名词+动词或动词+名词，禁止其他任何解释或说明，只允许回复汉字，不允许任何标点符号。`,
               },
             ],
             temperature: 0.2,
@@ -813,21 +815,53 @@
                 }
 
                 const data = JSON.parse(response.responseText);
-                const aiResponse = data.choices[0].message.content.trim();
+                let aiResponse = data.choices[0].message.content.trim();
 
-                // 清理AI回复，提取核心业务活动描述
-                let businessActivity = aiResponse
-                  .replace(/["""'''\(\)（）\[\]【】\{\}]/g, "") // 移除引号和括号
-                  .replace(/^主要业务活动[是为：:]\s*/, "") // 移除开头的"主要业务活动是"等
-                  .replace(/。$/, "") // 移除结尾的句号
-                  .trim();
+                // 更彻底地清理AI回复，移除所有非汉字字符
+                let businessActivity = "";
 
-                // 限制长度
+                // 第一步：使用正则表达式只保留汉字、英文字母和数字
+                businessActivity = aiResponse.replace(
+                  /[^\u4e00-\u9fa5a-zA-Z0-9]/g,
+                  ""
+                );
+
+                // 第二步：去除可能的前缀词语
+                const prefixes = [
+                  "主要业务活动是",
+                  "主要业务活动为",
+                  "业务活动是",
+                  "业务活动为",
+                  "主要是",
+                  "主要为",
+                ];
+                for (const prefix of prefixes) {
+                  if (businessActivity.startsWith(prefix)) {
+                    businessActivity = businessActivity.substring(
+                      prefix.length
+                    );
+                    break;
+                  }
+                }
+
+                // 第三步：去除可能的解释性描述
+                const explanationIndex = businessActivity.indexOf("即");
+                if (explanationIndex > 0) {
+                  businessActivity = businessActivity.substring(
+                    0,
+                    explanationIndex
+                  );
+                }
+
+                // 第四步：限制最终长度
                 if (businessActivity.length > 8) {
                   businessActivity = businessActivity.substring(0, 8);
                 }
 
-                MLK.UI.log(`AI分析结果: ${businessActivity}`, "success");
+                MLK.UI.log(
+                  `AI分析结果(清理后): ${businessActivity}`,
+                  "success"
+                );
                 resolve({ businessActivity });
               } catch (error) {
                 MLK.UI.log(`处理AI响应失败: ${error.message}`, "error");
@@ -1598,17 +1632,32 @@
             );
             if (newCompany && newCompany !== MLK.State.currentCompany) {
               MLK.State.currentCompany = newCompany;
+              MLK.State.lastUpdateTime = Date.now(); // 重置超时计时
             }
 
             // 检查是否超过30秒没有更新
-            if (
-              Date.now() - MLK.State.lastUpdateTime >
-              MLK.Config.AUTO_TIMEOUT
-            ) {
-              MLK.UI.log("30秒内没有处理新企业，可能遇到问题", "warning");
-              MLK.State.lastUpdateTime = Date.now();
+            const currentTime = Date.now();
+            const timeElapsed = currentTime - MLK.State.lastUpdateTime;
+
+            // 超过30秒未更新，说明页面可能卡住了
+            if (timeElapsed > MLK.Config.AUTO_TIMEOUT) {
+              MLK.UI.log(
+                "30秒内未检测到企业变化，尝试点击下一个按钮",
+                "warning"
+              );
+
+              // 尝试点击"下一个"按钮恢复
+              const nextButton = await MLK.Utils.findNextButton();
+              if (nextButton) {
+                MLK.UI.showMessage("系统超时，点击下一个继续", "warning");
+                nextButton.click();
+                MLK.State.lastUpdateTime = Date.now(); // 重置超时计时
+              } else {
+                MLK.UI.log("未找到下一个按钮", "error");
+              }
             }
           } catch (error) {
+            // 错误处理保持不变
             MLK.UI.log(`自动处理出错: ${error.message}`, "error");
             MLK.UI.showMessage("自动处理出错，已停止", "error");
             clearInterval(MLK.State.timer);
